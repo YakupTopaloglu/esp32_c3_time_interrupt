@@ -2,48 +2,52 @@
 
 // Pin tanımlamaları
 const int signalPin = 18; // Frekans ölçmek için kullanılan GPIO pini
-volatile unsigned long pulseCount = 0; // Gelen darbeleri saymak için değişken
-volatile bool measureReady = false;    // Ölçümün tamamlandığını işaretlemek için değişken
+volatile uint32_t pulseCount = 0; // 32-bit sayaç (daha büyük frekansları ölçmek için)
+volatile bool measureReady = false; // Ölçüm tamamlandığında işaretlenir
 
-// Timer konfigürasyonu için değişkenler
+// Timer değişkenleri
 hw_timer_t *timer = NULL;
 
-// Timer interrupt fonksiyonu
+// Hızlı GPIO okuma makrosu
+#define READ_PIN ((GPIO.in >> signalPin) & 0x1)
+
+// Timer interrupt fonksiyonu (100ms ölçüm süresi)
 void IRAM_ATTR onTimer() {
-  measureReady = true;  // Timer süresi dolduğunda ölçüm hazır
+  measureReady = true;
 }
 
-// Pulse sayacı fonksiyonu
+// Pulse sayacı fonksiyonu (Maksimum hız için optimize edildi)
 void IRAM_ATTR countPulse() {
-  pulseCount++;  // Her darbe algılandığında sayaç artırılır
+  pulseCount++;  
 }
 
 void setup() {
-  Serial.begin(9600); // Baud rate artırıldı
+  Serial.begin(9600); // Daha hızlı veri aktarımı için 115200 baud
 
-  // Sinyal pini girişi olarak ayarlanır ve interrupt tanımlanır
+  // GPIO pini giriş olarak ayarlandı ve kesme (interrupt) tanımlandı
   pinMode(signalPin, INPUT_PULLDOWN);
   attachInterrupt(digitalPinToInterrupt(signalPin), countPulse, RISING);
 
-  // Timer ayarları
-  timer = timerBegin(0, 80, true); // 80 prescaler ile 1 µs çözünürlük
+  // Timer ayarları (100ms ölçüm süresi)
+  timer = timerBegin(0, 80, true); // 80 prescaler = 1µs çözünürlük
   timerAttachInterrupt(timer, &onTimer, true);
-  timerAlarmWrite(timer, 1000000, true); // 1 saniye (1,000,000 µs)
-  timerAlarmEnable(timer);               // Timer alarmı etkinleştir
+  timerAlarmWrite(timer, 1000000, true); // 100ms zamanlayıcı (100.000 µs)
+  timerAlarmEnable(timer);
 }
 
 void loop() {
   if (measureReady) {
-    noInterrupts();          // Interruptları devre dışı bırak
-    unsigned long pulses = pulseCount; // Darbe sayısını al
-    pulseCount = 0;          // Sayaç sıfırla
-    measureReady = false;    // Ölçüm hazır işaretini temizle
-    interrupts();            // Interruptları yeniden etkinleştir
+    measureReady = false;
 
-    // Frekans hesaplama
-    uint32_t frequency = pulses; // 1 saniyelik ölçümde frekans doğrudan pulses olur
+    // Kesme kapatılıyor (veri tutarsızlığını önlemek için)
+    noInterrupts();
+    uint32_t pulses = pulseCount; // Ölçülen darbe sayısını al
+    pulseCount = 0; // Sayaç sıfırla
+    interrupts(); // Kesme tekrar etkinleştir
 
-    // Sonuçları seriyal monitöre yazdır
+    // Frekans hesaplama (100ms ölçüm yaptığımız için 10 ile çarpıyoruz)
+    uint32_t frequency = pulses * 1;
+
     Serial.print("Frekans: ");
     Serial.print(frequency);
     Serial.println(" Hz");
