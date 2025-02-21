@@ -4,7 +4,6 @@
 const int signalPin = 18; // Frekans ölçmek için kullanılan GPIO pini
 volatile unsigned long pulseCount = 0; // Gelen darbeleri saymak için değişken
 volatile bool measureReady = false;    // Ölçümün tamamlandığını işaretlemek için değişken
-unsigned long previousMillis = 0;
 
 // Timer konfigürasyonu için değişkenler
 hw_timer_t *timer = NULL;
@@ -20,10 +19,10 @@ void IRAM_ATTR countPulse() {
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(9600); // Baud rate artırıldı
 
   // Sinyal pini girişi olarak ayarlanır ve interrupt tanımlanır
-  pinMode(signalPin, INPUT);
+  pinMode(signalPin, INPUT_PULLDOWN);
   attachInterrupt(digitalPinToInterrupt(signalPin), countPulse, RISING);
 
   // Timer ayarları
@@ -35,14 +34,14 @@ void setup() {
 
 void loop() {
   if (measureReady) {
-    noInterrupts();         // Interruptları devre dışı bırak
+    noInterrupts();          // Interruptları devre dışı bırak
     unsigned long pulses = pulseCount; // Darbe sayısını al
-    pulseCount = 0;         // Sayaç sıfırla
-    measureReady = false;   // Ölçüm hazır işaretini temizle
-    interrupts();           // Interruptları yeniden etkinleştir
+    pulseCount = 0;          // Sayaç sıfırla
+    measureReady = false;    // Ölçüm hazır işaretini temizle
+    interrupts();            // Interruptları yeniden etkinleştir
 
     // Frekans hesaplama
-    float frequency = pulses / 1.0; // Frekans (Hz)
+    uint32_t frequency = pulses; // 1 saniyelik ölçümde frekans doğrudan pulses olur
 
     // Sonuçları seriyal monitöre yazdır
     Serial.print("Frekans: ");
